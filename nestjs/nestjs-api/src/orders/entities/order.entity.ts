@@ -1,6 +1,11 @@
-/* eslint-disable prettier/prettier */
-import { Product } from 'src/products/entities/product.entity';
-import { Column, CreateDateColumn, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
+import {
+  Column,
+  CreateDateColumn,
+  Entity,
+  OneToMany,
+  PrimaryGeneratedColumn,
+} from 'typeorm';
+import { OrderItem } from './ordem-item.entity';
 
 export enum OrderStatus {
   PENDING = 'pending',
@@ -8,11 +13,22 @@ export enum OrderStatus {
   FAILED = 'failed',
 }
 
+export type CreateOrderCommand = {
+  client_id: number;
+  items: {
+    product_id: string;
+    quantity: number;
+    price: number;
+  }[];
+};
+
+@Entity()
 export class Order {
-  @PrimaryGeneratedColumn()
+  [x: string]: any;
+  @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column()
+  @Column({ type: 'decimal', precision: 10, scale: 2 })
   total: number;
 
   @Column()
@@ -23,22 +39,23 @@ export class Order {
 
   @CreateDateColumn()
   created_at: Date;
-}
 
-export class OrderItem {
-  @PrimaryGeneratedColumn()  
-  id: number;
-  
-  @Column({ type: 'int' })
-  quantity: number;
+  @OneToMany(() => OrderItem, (item) => item.order, { cascade: ['insert'] })
+  items: OrderItem[];
 
-  @ManyToOne(() => Product)
-  @JoinColumn({ name: 'product_id' })
-  product: Product;
-
-  @Column()
-  product_id: string;
-
-  @ManyToOne(() => Order)
-  order: Order;
+  static create(input: CreateOrderCommand) {
+    const order = new Order();
+    order.client_id = input.client_id;
+    order.items = input.items.map((item) => {
+      const orderItem = new OrderItem();
+      orderItem.product_id = item.product_id;
+      orderItem.quantity = item.quantity;
+      orderItem.price = item.price;
+      return orderItem;
+    });
+    order.total = order.items.reduce((sum, item) => {
+      return sum + item.price * item.quantity;
+    }, 0);
+    return order;
+  }
 }
